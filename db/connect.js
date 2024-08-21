@@ -18,7 +18,7 @@ const connect = async () => {
         } catch (error) {
             console.error('Error connecting to mongodb', error)
         }
-        return db;
+        return {db, client};
     }
 }
 

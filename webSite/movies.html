@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body style="padding: 3%;">
+
+    <h1>Movies</h1>
+    <hr>
+    <!-- limit select -->
+    <select onchange="changeLimit()">
+        <option value="10">10</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="500">500</option>
+        <option value="1000">1000</option>
+        <option value="2000">2000</option>
+    </select>
+    <hr>
+    <div>
+        <label for="">Search</label>
+        <input type="text" id="search">
+        <button onclick="search()">Search</button>
+    </div>
+    <hr>
+    <table>
+        <!-- Id, title, year, poster -->
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Title</th>
+                <th>Year</th>
+                <th>Released</th>
+                <th>Poster</th>
+                <th>Cast</th>
+                <th>Imdb Rating</th>
+                <th>Comments</th>
+            </tr>
+        </thead>
+        <tbody id="body">
+
+        </tbody>
+    </table>
+
+</body>
+<script>
+
+
+
+
+
+    const loadData = (limit, search) => {
+        document.getElementById('body').innerHTML = '';
+
+        fetch('http://localhost:3000/api/movies?fields=_id,title,year,poster,released,cast,imdb.rating&sort=title:asc&limit=' + limit + "&search=" + search)
+            .then(response => response.json())
+            .then(data => {
+                fillTable(data)
+            });
+
+
+    }
+
+    const fillTable = (data) => {
+        let table = document.querySelector('table');
+        //clear table
+
+        data.forEach(movie => {
+            let row = document.createElement('tr');
+            let id = document.createElement('td');
+            let title = document.createElement('td');
+            let year = document.createElement('td');
+            let released = document.createElement('td');
+            let poster = document.createElement('td');
+            let cast = document.createElement('td');
+            let imdbRating = document.createElement('td');
+            let img = document.createElement('img');
+            let commentButton = document.createElement('button');
+            commentButton.textContent = 'Comments';
+            commentButton.onclick = () => {
+                getCommentsByMovieId(movie._id);
+            }
+
+            //if imdb points greater than 8, change color to green / row color
+            if (movie.imdb?.rating > 7) {
+                row.style.backgroundColor = 'red';
+            }
+
+            img.src = movie.poster;
+            img.style.width = '100px';
+            id.textContent = movie._id;
+            title.textContent = movie.title;
+            year.textContent = movie.year;
+            released.textContent = movie.released;
+            let castList = '';
+            movie.cast?.forEach(actor => {
+                castList += actor + ', ';
+            });
+            cast.textContent = castList;
+            imdbRating.textContent = movie.imdb?.rating;
+            poster.appendChild(img);
+            row.appendChild(id);
+            row.appendChild(title);
+            row.appendChild(year);
+            row.appendChild(released);
+            row.appendChild(poster);
+            row.appendChild(cast);
+            row.appendChild(imdbRating);
+            row.appendChild(commentButton);
+
+            document.querySelector("tbody").appendChild(row);
+        });
+
+    }
+
+    const changeLimit = () => {
+        document.getElementById('body').innerHTML = '';
+        let limit = document.querySelector('select').value;
+        loadData(limit, "");
+    }
+
+    loadData(10, "");
+
+    const search = () => {
+        let search = document.getElementById('search').value;
+        let limit = document.querySelector('select').value;
+
+        loadData(limit, search);
+    }
+
+
+
+    const getCommentsByMovieId = (id) => {
+        ///api/movies/:id/reviews
+        fetch('http://localhost:3000/api/movies/' + id + '/reviews')
+            .then(response => response.json())
+            .then(data => {
+                let comments = '';
+                data.forEach(comment => {
+                    comments += comment.name + ' : ' + comment.text + '\n';
+                });
+
+                alert(comments);
+            });
+    }
+
+
+
+
+</script>
+
+</html>

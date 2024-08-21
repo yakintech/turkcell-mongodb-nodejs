@@ -1,15 +1,23 @@
 const { ObjectId } = require("mongodb");
 const { connect } = require("./db/connect");
 const express = require("express");
+const cors = require("cors");
 const app = express();
 
 app.use(express.json())
+app.use(cors())
+
+
 
 
 let db;
+let client;
+let session;
 connect()
     .then((result) => {
-        db = result
+        db = result.db;
+        client = result.client;
+        session = client.startSession();
     })
     .catch((error) => {
         console.error('Error connecting to mongodb', error)
@@ -64,6 +72,23 @@ app.post("/api/users", async (req, res) => {
     }
 })
 
+//bulk user insert
+app.post("/api/users/bulk", async (req, res) => {
+    session.startTransaction()
+    const users = req.body;
+    console.log("users", users)
+
+    try {
+        const result = await db.collection("users").insertMany(users, { session })
+        await session.commitTransaction()
+        return res.json(result)
+
+    } catch (error) {
+        await session.abortTransaction()
+        return res.status(500).json({ error: error.message })
+    }
+})
+
 app.put("/api/users/:id", async (req, res) => {
     const { name, email } = req.body
 
@@ -87,13 +112,13 @@ app.put("/api/users/:id", async (req, res) => {
 })
 
 
-
 app.get("/api/movies", async (req, res) => {
 
     let limit = 20
     let fields = {}
-    let sort = { }
-    
+    let sort = {}
+    let search = req.query.search || ''
+
 
     if (req.query.limit) {
         limit = Number(req.query.limit)
@@ -109,18 +134,56 @@ app.get("/api/movies", async (req, res) => {
         sort[parts[0]] = parts[1] === 'desc' ? -1 : 1
     }
 
-    const movies = await db.collection("movies").find()
-        .project(fields) // project ile sadece belirli alanları getirebiliriz
-        .sort(sort) // sort ile sıralama yapabiliriz
-        .limit(limit).toArray() // limit ile kaç tane getireceğimizi belirleyebiliriz
+    const movies = await db.collection("movies").aggregate([
+        { $match: { title: { $regex: search, $options: 'i' } } },
+        { $project: fields }, // project ile sadece belirli alanları getirebiliriz
+        { $sort: sort }, // sort ile sıralama yapabiliriz
+        { $limit: limit } // limit ile kaç tane getireceğimizi belirleyebiliriz
+    ]).toArray();
 
+    // const movies = await db.collection("movies").find()
+    // .project(fields) // project ile sadece belirli alanları getirebiliriz
+    // .sort(sort) // sort ile sıralama yapabiliriz
+    // .limit(limit).toArray() // limit ile kaç tane getireceğimizi belirleyebiliriz
+
+
+
+    return res.json(movies)
+})
+
+//get movies by Country
+app.get("/api/movies/country/:country", async (req, res) => {
+    let country = req.params.country
+    console.log(country)
+    country = country.trim()
+
+    const movies = await db.collection("movies").aggregate([
+        {
+            $match:
+            {
+                countries: country
+            }
+        },
+        {
+            $project:
+            {
+                title: 1,
+                countries: 1,
+                year:1,
+                genres:1,
+                poster:1,
+                directors:1
+            }
+        }
+    ])
+    .toArray()
     return res.json(movies)
 })
 
 
 //belirli bir kullanıcı tarafından yapılan yorumlar. hangi filme ne yorum yapmış
 app.get("/api/users/:name/reviews", async (req, res) => {
-   
+
     let name = req.params.name
     name = name.trim()
 
@@ -128,47 +191,85 @@ app.get("/api/users/:name/reviews", async (req, res) => {
     const reviews = await db.collection("comments").aggregate([
         {
             $match:
-              /**
-               * query: The query in MQL.
-               */
-              {
+            {
                 name: name,
-              }
-          },
-          {
+            }
+        },
+        {
             $lookup:
-              /**
-               * from: The target collection.
-               * localField: The local join field.
-               * foreignField: The target join field.
-               * as: The name for the results.
-               * pipeline: Optional pipeline to run on the foreign collection.
-               * let: Optional variables to use in the pipeline field stages.
-               */
-              {
+            {
                 from: "movies",
                 localField: "movie_id",
                 foreignField: "_id",
                 as: "movie_info"
-              }
-          },
-          {
+            }
+        },
+        {
             $project:
-              /**
-               * specifications: The fields to
-               *   include or exclude.
-               */
-              {
+            {
                 "movie_info.title": 1,
                 text: 1
-              }
-          }
+            }
+        }
     ])
-    .toArray()
+        .toArray()
 
     return res.json(reviews)
 })
 
+//get movies by Cast
+app.get("/api/movies/cast/:cast", async (req, res) => {
+    let cast = req.params.cast
+    console.log(cast)
+    cast = cast.trim()
+
+    const movies = await db.collection("movies").aggregate([
+        {
+            $match:
+            {
+                cast: cast
+            }
+        },
+        {
+            $project:
+            {
+                title: 1,
+                cast: 1,
+                year:1,
+                genres:1,
+                poster:1,
+                directors:1
+            }
+        }
+    ])
+    .toArray()
+    return res.json(movies)
+})
+
+
+// belirli bir film için yapılan yorumlar
+app.get("/api/movies/:id/reviews", async (req, res) => {
+    let id = new ObjectId(req.params.id)
+
+    const reviews = await db.collection("comments").aggregate([
+        {
+            $match:
+            {
+                movie_id: id
+            }
+        },
+        {
+            $project:
+            {
+                name: 1,
+                text: 1
+            }
+        }
+    ])
+        .toArray()
+
+    return res.json(reviews)
+})
 
 
 
