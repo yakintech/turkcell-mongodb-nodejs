@@ -2,10 +2,15 @@ const { ObjectId } = require("mongodb");
 const { connect } = require("./db/connect");
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
+const fs = require("fs");
 const app = express();
 
 app.use(express.json())
 app.use(cors())
+const upload = multer({
+    storage:multer.memoryStorage()
+})
 
 
 
@@ -56,17 +61,28 @@ app.delete("/api/users/:id", async (req, res) => {
     }
 })
 
-app.post("/api/users", async (req, res) => {
+app.post("/api/users", upload.single("image"), async (req, res) => {
     const { name, email } = req.body
+
+
 
     const newUser = {
         name,
-        email
+        email,
+        image:{
+            data: req.file.buffer,
+            contentType: req.file.mimetype
+        }
     }
 
     try {
         const result = await db.collection("users").insertOne(newUser)
-        return res.json(result)
+        const image = await db.collection("users").findOne({ _id: result.insertedId }, { projection: { image: 1 } })
+        
+    
+       
+        res.setHeader("Content-Type", image.image.contentType)
+        return res.json(image.image.data)
     } catch (error) {
         return res.status(500).json({ error: error.message })
     }
@@ -169,14 +185,14 @@ app.get("/api/movies/country/:country", async (req, res) => {
             {
                 title: 1,
                 countries: 1,
-                year:1,
-                genres:1,
-                poster:1,
-                directors:1
+                year: 1,
+                genres: 1,
+                poster: 1,
+                directors: 1
             }
         }
     ])
-    .toArray()
+        .toArray()
     return res.json(movies)
 })
 
@@ -235,14 +251,14 @@ app.get("/api/movies/cast/:cast", async (req, res) => {
             {
                 title: 1,
                 cast: 1,
-                year:1,
-                genres:1,
-                poster:1,
-                directors:1
+                year: 1,
+                genres: 1,
+                poster: 1,
+                directors: 1
             }
         }
     ])
-    .toArray()
+        .toArray()
     return res.json(movies)
 })
 
@@ -271,6 +287,24 @@ app.get("/api/movies/:id/reviews", async (req, res) => {
     return res.json(reviews)
 })
 
+
+
+app.get("/api/theaters", async (req, res) => {
+
+
+    let limit = 20
+
+    if (req.query.limit) {
+        limit = Number(req.query.limit)
+    }
+
+    const theaters = await db.collection("theaters")
+        .find()
+        .limit(limit)
+        .toArray()
+
+    return res.json(theaters)
+})
 
 
 

@@ -15,8 +15,15 @@
         <input type="email" id="email">
     </div>
     <div>
+        <label for="">Photo</label>
+        <input type="file" id="photo">
+    </div>
+    <div>
         <button onclick="add()">Add</button>
     </div>
+
+    <hr>
+    <img id="uploadedImage" src="" alt="">
     
 </body>
 <script>
@@ -26,21 +33,20 @@
         const name = document.getElementById('name').value;
         const email = document.getElementById('email').value;
 
-        fetch('http://localhost:3000/api/users', {
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('email', email);
+        formData.append('image', document.getElementById('photo').files[0]);
+
+        
+        fetch("http://localhost:3000/api/users", {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name: name,
-                email: email
-            })
+            body: formData
         })
         .then(response => response.json())
         .then(data => {
-            console.log(data);
-            alert("User added successfully");
-        })
+            alert('User added');
+        });
     }
 </script>
 </html>
