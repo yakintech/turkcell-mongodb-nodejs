@@ -1,0 +1,646 @@
+Son 10 yılda ( 2014 sonrası ) yapılmış filmleri ve bu filmlere ait yorumları bana ver.
+
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        year: {
+          $gte: 2014
+        }
+      }
+  },
+  {
+    $lookup:
+      /**
+       * from: The target collection.
+       * localField: The local join field.
+       * foreignField: The target join field.
+       * as: The name for the results.
+       * pipeline: Optional pipeline to run on the foreign collection.
+       * let: Optional variables to use in the pipeline field stages.
+       */
+      {
+        from: "comments",
+        localField: "_id",
+        foreignField: "movie_id",
+        as: "movie_comments"
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        year: 1,
+        "movie_comments.text": 1
+      }
+  }
+]
+
+
+
+Kategorisi western olan filmlerin ortalama süresi nedir?
+
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        year: {
+          $gte: 2014
+        }
+      }
+  },
+  {
+    $lookup:
+      /**
+       * from: The target collection.
+       * localField: The local join field.
+       * foreignField: The target join field.
+       * as: The name for the results.
+       * pipeline: Optional pipeline to run on the foreign collection.
+       * let: Optional variables to use in the pipeline field stages.
+       */
+      {
+        from: "comments",
+        localField: "_id",
+        foreignField: "movie_id",
+        as: "movie_comments"
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        year: 1,
+        "movie_comments.text": 1
+      }
+  }
+]
+
+
+Türe göre filmlerin ortalama süresi
+
+[
+  {
+    $unwind:
+      /**
+       * path: Path to the array field.
+       * includeArrayIndex: Optional name for index.
+       * preserveNullAndEmptyArrays: Optional
+       *   toggle to unwind null and empty values.
+       */
+      {
+        path: "$genres"
+      }
+  },
+  {
+    $group:
+      /**
+       * _id: The id of the group.
+       * fieldN: The first field name.
+       */
+      {
+        _id: "$genres",
+        avgTime: {
+          $avg: "$runtime"
+        }
+      }
+  },
+  {
+    $sort:
+      /**
+       * Provide any number of field/order pairs.
+       */
+      {
+        avgTime: -1
+      }
+  }
+]
+
+
+
+
+Action türündeki filmlerin EN UZUN SÜRESİ
+
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        genres: "Action"
+      }
+  },
+  {
+    $group:
+      /**
+       * _id: The id of the group.
+       * fieldN: The first field name.
+       */
+      {
+        _id: null,
+        maxTime: {
+          $max: "$runtime"
+        }
+      }
+  }
+]
+
+
+Comedy türündeki filmlerin ortalama IMDB puanı
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        genres: "Comedy"
+      }
+  },
+  {
+    $group:
+      /**
+       * _id: The id of the group.
+       * fieldN: The first field name.
+       */
+      {
+        _id: null,
+        avgRating: {
+          $avg: "$imdb.rating"
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        _id: 0,
+        avgRating: 1
+      }
+  }
+]
+
+
+IMDB puanını düz bir sayıya yuvarladım
+[
+  {
+    $addFields:
+      /**
+       * newField: The new field name.
+       * expression: The new field expression.
+       */
+      {
+        roundedRating: {
+          $round: ["$imdb.rating", 0]
+        }
+      }
+  }
+]
+
+Filmerin süresini saat ve dakika olarak göstermek
+[
+  {
+    $addFields:
+      /**
+       * newField: The new field name.
+       * expression: The new field expression.
+       */
+      {
+        hours: {
+          $floor: {
+            $divide: ["$runtime", 60]
+          }
+        },
+        minutes: {
+          $mod: ["$runtime", 60]
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        runtime: 1,
+        hours: 1,
+        minutes: 1
+      }
+  }
+]
+
+
+Filmin süresine göre bir süre kategorisi eklemek. Eğer film süresi 120 dk dan büyükse durationCategory “Long” değilse durationCategory “Short” yazsın. 
+[
+  {
+    $addFields:
+      /**
+       * newField: The new field name.
+       * expression: The new field expression.
+       */
+      {
+        durationCategory: {
+          $cond: {
+            if: {
+              $gt: ["$runtime", 120]
+            },
+            then: "Long",
+            else: "Short"
+          }
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        runtime: 1,
+        durationCategory: 1,
+        poster: 1,
+        year: 1
+      }
+  }
+]
+
+Filmin bazı bilgilerini tek bir alana yazmak. title - year - rating. summary adında bir field oluşturuyorum.
+[
+  {
+    $addFields:
+      /**
+       * newField: The new field name.
+       * expression: The new field expression.
+       */
+      {
+        summary: {
+          $concat: [
+            "$title",
+            " (",
+            {
+              $toString: "$year"
+            },
+            ") - IMDB: ",
+            {
+              $toString: "$imdb.rating"
+            }
+          ]
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        summary: 1,
+        _id: 0
+      }
+  }
+]
+
+merge sample
+[
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        year: 1,
+        imdbRatig: "$imdb.rating",
+        summary: {
+          $concat: [
+            "$title",
+            " (",
+            {
+              $toString: "$year"
+            },
+            " ) IMDB: ",
+            {
+              $toString: "$imdb.rating"
+            }
+          ]
+        }
+      }
+  },
+  {
+    $limit:
+      /**
+       * Provide the number of documents to limit.
+       */
+      1000
+  },
+  {
+    $merge:
+      /**
+       * into: The target collection.
+       * on: Fields to  identify.
+       * let: Defined variables.
+       * whenMatched: Action for matching docs.
+       * whenNotMatched: Action for non-matching docs.
+       */
+      {
+        into: "movies_summary",
+        whenMatched: "merge",
+        whenNotMatched: "insert"
+      }
+  }
+]
+
+
+Cast oyuncularının ismini küçük harflerle yazsın
+
+[
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        poster: 1,
+        lowerCaseCast: {
+          $map: {
+            input: "$cast",
+            as: "actor",
+            in: {
+              $toLower: "$$actor"
+            }
+          }
+        }
+      }
+  }
+]
+
+
+
+
+Casy oyuncularından ismi George Barnes olanı Veli yap
+[
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        poster: 1,
+        modifiedCast: {
+          $map: {
+            input: "$cast",
+            as: "actor",
+            in: {
+              $cond: {
+                if: {
+                  $eq: [
+                    "$$actor",
+                    "George Barnes"
+                  ]
+                },
+                then: "Veli",
+                else: "$$actor"
+              }
+            }
+          }
+        }
+      }
+  }
+]
+
+
+Her filmdeki comments dizisinde yer alan türleri birleştirip tek bir cümle yorum yaz
+[
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        poster: 1,
+        combinedGenres: {
+          $reduce: {
+            input: "$genres",
+            initialValue: "",
+            in: {
+              $concat: ["$$value", " ", "$$this"]
+            }
+          }
+        }
+      }
+  }
+]
+
+
+1 Ocak 2000 tarihinde sonra yapılan filmle
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        released: {
+          $gte: new Date("2015-01-01")
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        released: 1,
+        title: 1
+      }
+  }
+]
+
+
+Filmleri yayınladıkları aya göre grupla ( Bakılacak !! )
+[
+  {
+    $group:
+      /**
+       * _id: The id of the group.
+       * fieldN: The first field name.
+       */
+      {
+        _id: {
+          $month: "$released"
+        },
+        count: {
+          $sum: 1
+        }
+      }
+  },
+  {
+    $sort:
+      /**
+       * Provide any number of field/order pairs.
+       */
+      {
+        _id: -1
+      }
+  }
+]
+
+
+Filmeri listelerken haftanın hangi günü yapıldıgını da göster
+[
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        poster: 1,
+        dayOfWeek: {
+          $dayOfWeek: "$released"
+        },
+        _id: 0
+      }
+  }
+]
+
+
+Filmin bazı bilgilerini tek bir alana yazmak. title - year - rating. summary adında bir field oluşturuyorum. (copy)
+[
+  {
+    $addFields:
+      /**
+       * newField: The new field name.
+       * expression: The new field expression.
+       */
+      {
+        summary: {}
+      }
+  }
+]
+
+bucket sample
+[
+  {
+    $bucket:
+      /**
+       * groupBy: The expression to group by.
+       * boundaries: An array of the lower boundaries for each bucket.
+       * default: The bucket name for documents that do not fall within the specified boundaries
+       * output: {
+       *   outputN: Optional. The output object may contain a single or numerous field names used to accumulate values per bucket.
+       * }
+       */
+      {
+        groupBy: "$imdb.rating",
+        boundaries: [0, 5, 7, 8, 9, 10],
+        default: "Other",
+        output: {
+          count: {
+            $sum: 1
+          },
+          titles: {
+            $push: "$title"
+          }
+        }
+      }
+  },
+  {
+    $out:
+      /**
+       * Provide the name of the output database and collection.
+       */
+      {
+        db: "sample_mflix",
+        coll: "groupByImdb"
+        /*
+    timeseries: {
+    timeField: 'field',
+    bucketMaxSpanSeconds: 'number',
+    granularity: 'granularity'
+    }
+    */
+      }
+  }
+]
+
+
+out sample
+[
+  {
+    $match:
+      /**
+       * query: The query in MQL.
+       */
+      {
+        "imdb.rating": {
+          $gte: 8
+        }
+      }
+  },
+  {
+    $project:
+      /**
+       * specifications: The fields to
+       *   include or exclude.
+       */
+      {
+        title: 1,
+        poster: 1,
+        imdb: 1,
+        year: 1,
+        released: 1
+      }
+  },
+  {
+    $out:
+      /**
+       * Provide the name of the output database and collection.
+       */
+      {
+        db: "sample_mflix",
+        coll: "topMovies"
+        /*
+    timeseries: {
+    timeField: 'field',
+    bucketMaxSpanSeconds: 'number',
+    granularity: 'granularity'
+    }
+    */
+      }
+  }
+]
+
